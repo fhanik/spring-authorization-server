@@ -39,6 +39,7 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
 import org.springframework.security.oauth2.server.authorization.config.ProviderSettings;
 import org.springframework.security.oauth2.server.authorization.JwtEncodingContext;
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenCustomizer;
+import org.springframework.security.oauth2.server.authorization.event.OAuth2AuthorizationEventPublisher;
 import org.springframework.util.Assert;
 import org.springframework.util.CollectionUtils;
 
@@ -62,6 +63,7 @@ import static org.springframework.security.oauth2.server.authorization.authentic
 public class OAuth2ClientCredentialsAuthenticationProvider implements AuthenticationProvider {
 	private final OAuth2AuthorizationService authorizationService;
 	private final JwtEncoder jwtEncoder;
+	private OAuth2AuthorizationEventPublisher publisher = OAuth2AuthorizationEventPublisher.nullPublisher();
 	private OAuth2TokenCustomizer<JwtEncodingContext> jwtCustomizer = (context) -> {};
 	private ProviderSettings providerSettings;
 
@@ -152,12 +154,21 @@ public class OAuth2ClientCredentialsAuthenticationProvider implements Authentica
 		// @formatter:on
 
 		this.authorizationService.save(authorization);
-
-		return new OAuth2AccessTokenAuthenticationToken(registeredClient, clientPrincipal, accessToken);
+		OAuth2AccessTokenAuthenticationToken token =
+				new OAuth2AccessTokenAuthenticationToken(registeredClient, clientPrincipal, accessToken);
+		this.publisher.tokenIssuedEvent(token, AuthorizationGrantType.CLIENT_CREDENTIALS);
+		return token;
 	}
 
 	@Override
 	public boolean supports(Class<?> authentication) {
 		return OAuth2ClientCredentialsAuthenticationToken.class.isAssignableFrom(authentication);
+	}
+
+	public void setOAuth2AuthorizationEventPublisher(
+			OAuth2AuthorizationEventPublisher publisher
+	) {
+		Assert.notNull(publisher, "OAuth2AuthorizationEventPublisher must not be null");
+		this.publisher = publisher;
 	}
 }

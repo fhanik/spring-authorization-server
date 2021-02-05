@@ -46,6 +46,7 @@ import org.springframework.security.oauth2.server.authorization.authentication.O
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2TokenRevocationAuthenticationProvider;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.config.ProviderSettings;
+import org.springframework.security.oauth2.server.authorization.event.OAuth2AuthorizationEventPublisher;
 import org.springframework.security.oauth2.server.authorization.oidc.web.OidcProviderConfigurationEndpointFilter;
 import org.springframework.security.oauth2.server.authorization.web.NimbusJwkSetEndpointFilter;
 import org.springframework.security.oauth2.server.authorization.web.OAuth2AuthorizationEndpointFilter;
@@ -133,6 +134,18 @@ public final class OAuth2AuthorizationServerConfigurer<B extends HttpSecurityBui
 	}
 
 	/**
+	 * Sets the event publisher
+	 *
+	 * @param publisher the event publisher
+	 * @return the {@link OAuth2AuthorizationServerConfigurer} for further configuration
+	 */
+	public OAuth2AuthorizationServerConfigurer<B> authorizationEventPublisher(OAuth2AuthorizationEventPublisher publisher) {
+		Assert.notNull(publisher, "publisher cannot be null");
+		this.getBuilder().setSharedObject(OAuth2AuthorizationEventPublisher.class, publisher);
+		return this;
+	}
+
+	/**
 	 * Returns a {@link RequestMatcher} for the authorization server endpoints.
 	 *
 	 * @return a {@link RequestMatcher} for the authorization server endpoints
@@ -152,6 +165,12 @@ public final class OAuth2AuthorizationServerConfigurer<B extends HttpSecurityBui
 						getRegisteredClientRepository(builder),
 						getAuthorizationService(builder));
 		builder.authenticationProvider(postProcess(clientAuthenticationProvider));
+
+		OAuth2AuthorizationEventPublisher publisher = builder.getSharedObject(OAuth2AuthorizationEventPublisher.class);
+		if (publisher == null) {
+			publisher = OAuth2AuthorizationEventPublisher.nullPublisher();
+		}
+		publisher = postProcess(publisher);
 
 		JwtEncoder jwtEncoder = getJwtEncoder(builder);
 		OAuth2TokenCustomizer<JwtEncodingContext> jwtCustomizer = getJwtCustomizer(builder);
@@ -181,6 +200,7 @@ public final class OAuth2AuthorizationServerConfigurer<B extends HttpSecurityBui
 		if (jwtCustomizer != null) {
 			clientCredentialsAuthenticationProvider.setJwtCustomizer(jwtCustomizer);
 		}
+		clientCredentialsAuthenticationProvider.setOAuth2AuthorizationEventPublisher(publisher);
 		builder.authenticationProvider(postProcess(clientCredentialsAuthenticationProvider));
 
 		OAuth2TokenRevocationAuthenticationProvider tokenRevocationAuthenticationProvider =

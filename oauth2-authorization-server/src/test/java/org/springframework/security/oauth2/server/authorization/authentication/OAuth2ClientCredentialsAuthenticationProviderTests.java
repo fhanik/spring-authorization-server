@@ -42,10 +42,12 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
 import org.springframework.security.oauth2.server.authorization.client.TestRegisteredClients;
 import org.springframework.security.oauth2.server.authorization.JwtEncodingContext;
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenCustomizer;
+import org.springframework.security.oauth2.server.authorization.event.OAuth2AuthorizationEventPublisher;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -177,6 +179,26 @@ public class OAuth2ClientCredentialsAuthenticationProviderTests {
 		OAuth2AccessTokenAuthenticationToken accessTokenAuthentication =
 				(OAuth2AccessTokenAuthenticationToken) this.authenticationProvider.authenticate(authentication);
 		assertThat(accessTokenAuthentication.getAccessToken().getScopes()).isEqualTo(requestedScope);
+	}
+
+	@Test
+	public void authenticateWhenPublisherSetSendsTokenIssuedEvent() {
+		OAuth2AuthorizationEventPublisher publisher = mock(OAuth2AuthorizationEventPublisher.class);
+		this.authenticationProvider.setOAuth2AuthorizationEventPublisher(publisher);
+		RegisteredClient registeredClient = TestRegisteredClients.registeredClient2().build();
+		OAuth2ClientAuthenticationToken clientPrincipal = new OAuth2ClientAuthenticationToken(registeredClient);
+		Set<String> requestedScope = Collections.singleton("scope1");
+		OAuth2ClientCredentialsAuthenticationToken authentication =
+				new OAuth2ClientCredentialsAuthenticationToken(clientPrincipal, requestedScope, null);
+
+		when(this.jwtEncoder.encode(any(), any())).thenReturn(createJwt(requestedScope));
+
+		this.authenticationProvider.authenticate(authentication);
+
+		verify(publisher).tokenIssuedEvent(
+				any(OAuth2AccessTokenAuthenticationToken.class),
+				eq(AuthorizationGrantType.CLIENT_CREDENTIALS)
+		);
 	}
 
 	@Test
